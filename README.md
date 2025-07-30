@@ -45,12 +45,20 @@ To upgrade later, simply run:
 pipx upgrade cloudflare-tunnelmanager
 ```
 
-### From source (for modification)
+### Install from source (for modification)
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/svdoever/cloudflare-tunnelmanager
 cd cloudflare-tunnelmanager
-pip install -e .
+pipx install -editable .
+```
+
+## run without installation
+
+It is also possible to run the cloned version without installation:
+
+```bash
+python -m cloudflare_tunnelmanager.main folder --port 8123
 ```
 
 ## Usage
