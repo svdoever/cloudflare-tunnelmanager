@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cloudflare-tunnelmanager"
+version = "1.0.6"
+description = "A Python CLI tool to manage Cloudflare tunnels with automatic cleanup and DNS configuration"
+authors = [
+    {name = "Serge van den Oever", email = "svdoever@gmail.com"}
+]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: System :: Networking",
+]
+keywords = ["cloudflare", "tunnel", "cli", "http", "server"]
+dependencies = [
+    "requests>=2.25.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/svdoever/cloudflare-tunnelmanager"
+Repository = "https://github.com/svdoever/cloudflare-tunnelmanager"
+Issues = "https://github.com/svdoever/cloudflare-tunnelmanager/issues"
+
+[project.scripts]
+cloudflare-tunnelmanager = "cloudflare_tunnelmanager.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cloudflare_tunnelmanager*"]
+
+[tool.setuptools.package-data]
+cloudflare_tunnelmanager = ["*.py"]
