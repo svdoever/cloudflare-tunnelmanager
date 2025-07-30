@@ -4,10 +4,11 @@ Cloudflare Tunnel Manager
 A Python script to manage Cloudflare tunnels with automatic cleanup and DNS configuration.
 """
 
-__version__ = "1.0.6"
+__version__ = "2.0.0"
 
 import argparse
 import atexit
+import base64
 import json
 import os
 import shutil
@@ -26,18 +27,23 @@ import requests
 class CloudflareTunnelManager:
     """Manages Cloudflare tunnels with automatic cleanup and configuration."""
     
-    def __init__(self, command: str, domain: str, port: int, folder: Optional[str] = None, subdomain: Optional[str] = None) -> None:
+    def __init__(self, command: str, port: int, folder: Optional[str] = None, subdomain: Optional[str] = None) -> None:
         """
         Initialize the tunnel manager.
         
         Args:
             command: Command type ('localhost' or 'folder')
-            domain: The domain to use for the tunnel
             port: Port number to use
             folder: Folder path for 'folder' command
             subdomain: Optional subdomain, defaults to folder name
         """
-        self.domain = domain
+        # Get domain from Cloudflare authentication
+        self.domain = self.get_cloudflare_domain()
+        if not self.domain:
+            print("Error: Could not determine domain from Cloudflare authentication.")
+            print("Please run 'cloudflared login' and select your domain.")
+            sys.exit(1)
+        
         self.command = command
         self.port = port
         self.folder_path = folder
@@ -71,6 +77,102 @@ class CloudflareTunnelManager:
         self.cloudflared_dir.mkdir(exist_ok=True)
         if not self.cloudflared_dir.exists():
             print(f"Created .cloudflared directory: {self.cloudflared_dir}")
+    
+    def get_cloudflare_domain(self) -> Optional[str]:
+        """
+        Get the domain from Cloudflare authentication by reading cert.pem and making API call.
+        
+        Returns:
+            Domain name if found, None if error
+        """
+        try:
+            # Setup paths
+            cloudflared_dir = Path.home() / ".cloudflared"
+            cert_file = cloudflared_dir / "cert.pem"
+            
+            if not cert_file.exists():
+                print(f"Cloudflare certificate not found at: {cert_file}")
+                print("Please run 'cloudflared login' to authenticate with Cloudflare.")
+                return None
+            
+            # Read and decode the certificate
+            cert_content = cert_file.read_text().strip()
+            
+            # Extract the base64 token between the BEGIN/END markers
+            lines = cert_content.split('\n')
+            token_lines = []
+            in_token = False
+            
+            for line in lines:
+                if "-----BEGIN ARGO TUNNEL TOKEN-----" in line:
+                    in_token = True
+                    continue
+                elif "-----END ARGO TUNNEL TOKEN-----" in line:
+                    break
+                elif in_token:
+                    token_lines.append(line.strip())
+            
+            if not token_lines:
+                print("Could not find valid token in cert.pem")
+                return None
+            
+            # Decode the base64 token
+            token_b64 = ''.join(token_lines)
+            try:
+                token_json = base64.b64decode(token_b64).decode('utf-8')
+                token_data = json.loads(token_json)
+            except Exception as e:
+                print(f"Error decoding token: {e}")
+                return None
+            
+            # Extract required fields
+            zone_id = token_data.get('zoneID')
+            api_token = token_data.get('apiToken')
+            account_id = token_data.get('accountID')
+            
+            if not all([zone_id, api_token]):
+                print("Missing required fields in token (zoneID, apiToken)")
+                return None
+            
+            print(f"Found Cloudflare authentication:")
+            print(f"  Zone ID: {zone_id}")
+            print(f"  Account ID: {account_id}")
+            
+            # Make API call to get zone information
+            url = f"https://api.cloudflare.com/client/v4/zones/{zone_id}"
+            headers = {
+                "Authorization": f"Bearer {api_token}",
+                "Content-Type": "application/json"
+            }
+            
+            response = requests.get(url, headers=headers, timeout=10)
+            
+            if response.status_code != 200:
+                print(f"API call failed with status {response.status_code}: {response.text}")
+                return None
+            
+            data = response.json()
+            if not data.get('success'):
+                print(f"API call unsuccessful: {data.get('errors', 'Unknown error')}")
+                return None
+            
+            result = data.get('result', {})
+            domain = result.get('name')
+            status = result.get('status')
+            account_name = result.get('account', {}).get('name', 'Unknown')
+            
+            if domain:
+                print(f"  Domain: {domain}")
+                print(f"  Status: {status}")
+                print(f"  Account: {account_name}")
+                return domain
+            else:
+                print("Domain name not found in API response")
+                return None
+                
+        except Exception as e:
+            print(f"Error getting Cloudflare domain: {e}")
+            return None
     
     def get_available_port(self, start_port: int = 8100, end_port: int = 9000) -> int:
         """
@@ -578,12 +680,6 @@ def main() -> None:
         help='Command to execute: localhost (tunnel existing service) or folder (serve folder)'
     )
     
-    # Add domain as second positional argument
-    parser.add_argument(
-        'domain',
-        help='The domain to use for the tunnel'
-    )
-    
     # Add port parameter (required)
     parser.add_argument(
         '--port', '-p',
@@ -611,14 +707,12 @@ def main() -> None:
     if args.command == 'localhost':
         manager = CloudflareTunnelManager(
             command='localhost',
-            domain=args.domain,
             port=args.port,
             subdomain=args.subdomain
         )
     elif args.command == 'folder':
         manager = CloudflareTunnelManager(
             command='folder',
-            domain=args.domain,
             port=args.port,
             folder=args.folder,
             subdomain=args.subdomain
