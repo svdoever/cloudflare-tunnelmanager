@@ -241,7 +241,7 @@ Current version: **2.0.0**
 
 ### Major Changes in v2.0.0
 - 🎉 **Automatic domain detection**: No need to specify domain as parameter
-- 🔐 **Enhanced authentication**: Reads domain from Cloudflare cert.pem file
+- 🔐 **Enhanced authentication**: Reads domain from Cloudflare using API token from `cert.pem` file
 - 🌐 **API integration**: Makes Cloudflare API calls to verify domain status
 - 📝 **Simplified command syntax**: Removed domain parameter requirement
 
